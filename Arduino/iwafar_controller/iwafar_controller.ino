@@ -357,7 +357,7 @@ bool executeCommand(char cmdReceived[][MAX_SIZE_COMMAND])
     /* Calibration of Z axis */
     else if( !strcmp(cmdReceived[0],"@INFO\r") )
     {
-      Serial.println("\n======================================");
+      Serial.println("======================================");
       Serial.println("AFO INFO version 0.1");
       Serial.println("======================================");
       Serial.print("Calibration speed: ");
@@ -393,13 +393,13 @@ void replyAcknowledge(bool cmdStatus)
 /* Print ACK message */
 void sendACK()
 {
-    Serial.print("ACK\n");
+    Serial.println("ACK");
 }
 
 /* Print NACK message */
 void sendNACK()
 {
-    Serial.print("NACK\n");
+    Serial.println("NACK");
 }
 
 /* Check the command received */
