@@ -175,8 +175,6 @@ bool executeCommand(char cmdReceived[][MAX_SIZE_COMMAND])
             }
             else
             {
-                bool motorReadyInPosition = false;
-    
                 setTargetPID = targetMotorPosition;
                 Serial.println("");
     
@@ -198,12 +196,7 @@ bool executeCommand(char cmdReceived[][MAX_SIZE_COMMAND])
       
                     assistiveMotor->setSpeed(abs(outputPositionPID));
             
-                    if( setTargetPID == inputPositionPID )
-                    {
-                        assistiveMotor->run(RELEASE);                  
-                        motorReadyInPosition = true;
-                    }
-                    else if( outputPositionPID > 0 )
+                    if( outputPositionPID > 0 )
                     {
                         assistiveMotor->run(FORWARD);
                     }
@@ -213,10 +206,11 @@ bool executeCommand(char cmdReceived[][MAX_SIZE_COMMAND])
                     }
                     else
                     {
-                        motorReadyInPosition = true;
-                        assistiveMotor->run(RELEASE);                  
+                        // temporally empty
                     }
-                }while( !motorReadyInPosition );
+                }while( setTargetPID != inputPositionPID );
+
+                assistiveMotor->run(RELEASE);                  
             }
         }
         else
@@ -272,7 +266,7 @@ bool executeCommand(char cmdReceived[][MAX_SIZE_COMMAND])
                 }
                 else
                 {
-                    assistiveMotor->run(RELEASE);
+                    // temporally empty
                 }
                                     
             }while( strcmp(commands_char[0],"@TRANSPARENCY") || strcmp(commands_char[1],"OFF\r") );
