@@ -186,7 +186,7 @@ bool executeCommand(char cmdReceived[][MAX_SIZE_COMMAND])
                     assistiveMotorPID.Compute();
             
                     Serial.print("Target position: ");
-                    Serial.print(targetMotorPosition);
+                    Serial.print(setTargetPID);
                     Serial.print("\t");
                     
                     Serial.print("Current position: ");
@@ -194,8 +194,7 @@ bool executeCommand(char cmdReceived[][MAX_SIZE_COMMAND])
                     Serial.print("\t");
       
                     Serial.print("PID control signal: ");
-                    Serial.print(outputPositionPID);
-                    Serial.print("\t");
+                    Serial.println(outputPositionPID);
       
                     assistiveMotor->setSpeed(abs(outputPositionPID));
             
@@ -228,54 +227,57 @@ bool executeCommand(char cmdReceived[][MAX_SIZE_COMMAND])
     {
         if( !strcmp(cmdReceived[1],"ON\r") )
         {
-            if( assistiveSpeed > 0)
+            Serial.println("");
+
+            do
             {
-                do
+                if( Serial.available() > 0 )
                 {
-                    if( Serial.available() > 0 )
-                    {
-                        commandStatus = readCommands();
-                        replyAcknowledge(commandStatus);
-                    }
+                    commandStatus = readCommands();
+                    replyAcknowledge(commandStatus);
+                }
 
-                    currentSensorMotorPosition = analogRead(linPotPin);
-                    mapCurrentSensorMotorPosition = map(currentSensorMotorPosition, 0, 1023, 0, 127);
-                    constrainCurrentSensorMotorPosition = constrain(mapCurrentSensorMotorPosition, 0, 127);
+                currentSensorMotorPosition = analogRead(linPotPin);
+                mapCurrentSensorMotorPosition = map(currentSensorMotorPosition, 0, 1023, 0, 127);
+                constrainCurrentSensorMotorPosition = constrain(mapCurrentSensorMotorPosition, 0, 127);
 
-                    Serial.print("Mapped sensor motor: ");
-                    Serial.print(constrainCurrentSensorMotorPosition);
-                    Serial.print("\t");
-                    
-                    setTargetPID = constrainCurrentSensorMotorPosition;
-                    inputPositionPID = getPositionMotorFeedback();
+                setTargetPID = constrainCurrentSensorMotorPosition;
+                inputPositionPID = getPositionMotorFeedback();
+                assistiveMotorPID.Compute();
 
-                    Serial.print("Feedback position: ");
-                    Serial.print(getPositionMotorFeedback());
-                    Serial.print("\t\t");
-                      
-                    assistiveMotorPID.Compute();
-                    
-                    Serial.print("PID output position: ");
-                    Serial.print(outputPositionPID);
-                    Serial.print("\t");
+                Serial.print("Target position: ");
+                Serial.print(setTargetPID);
+                Serial.print("\t");
+                
+                Serial.print("Current position: ");
+                Serial.print(inputPositionPID);
+                Serial.print("\t");
+                                  
+                Serial.print("PID control signal: ");
+                Serial.println(outputPositionPID);
 
-                    if( outputPositionPID > 0 )
-                    {
-                      Serial.println("Motor action: move forward");
-                    }
-                    else if( outputPositionPID < 0 )
-                    {
-                      Serial.println("Motor action: move backward");
-                    }
-                    else
-                    {
-                      Serial.println("Motor action: stop motor");
-                    }
-                                        
-                }while( strcmp(commands_char[0],"@TRANSPARENCY") || strcmp(commands_char[1],"OFF\r") );
+                assistiveMotor->setSpeed(abs(outputPositionPID));
+        
+                if( setTargetPID == inputPositionPID )
+                {
+                    assistiveMotor->run(RELEASE);                  
+                }
+                else if( outputPositionPID > 0 )
+                {
+                    assistiveMotor->run(FORWARD);
+                }
+                else if( outputPositionPID < 0 )
+                {
+                    assistiveMotor->run(BACKWARD);
+                }
+                else
+                {
+                    assistiveMotor->run(RELEASE);
+                }
+                                    
+            }while( strcmp(commands_char[0],"@TRANSPARENCY") || strcmp(commands_char[1],"OFF\r") );
 
-                Serial.println("End of TRANSPARENCY MODE");
-            }
+            Serial.println("End of TRANSPARENCY MODE");
             return true;
         }
         else if( !strcmp(cmdReceived[1],"OFF\r") )
@@ -316,7 +318,7 @@ bool executeCommand(char cmdReceived[][MAX_SIZE_COMMAND])
         return true;
     }
     /* Calibration of T axis */
-    else if( !strcmp(cmdReceived[0],"@SETASSISTSPEED") )
+    else if( !strcmp(cmdReceived[0],"@SETMAXSPEED") )
     {
         if( strcmp(cmdReceived[1]," ") )
         {
@@ -373,7 +375,7 @@ void sendNACK()
 /* Check the command received */
 bool commandList(char *cmdReceived)
 {
-    char *commandArray[] = {"@CALIBRATE\r","@MOVESTEP","@SETASSISTSPEED","@INFO\r","@TRANSPARENCY","@ASSISTANCE"};
+    char *commandArray[] = {"@CALIBRATE\r","@MOVESTEP","@SETMAXSPEED","@INFO\r","@TRANSPARENCY","@ASSISTANCE"};
     int ncommands = 6;
     
     for( int i = 0; i < ncommands; i++ )
