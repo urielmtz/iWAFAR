@@ -60,9 +60,7 @@ int count = 0;
 int ncommand = 0;
 char current_char;
 bool commandStatus = false;
-int calibrationSpeed;
 int assistiveSpeed;
-int transparencySpeed;
 
 
 Adafruit_MotorShield AFMS = Adafruit_MotorShield();
@@ -86,15 +84,13 @@ void setup() {
 
   pinMode(linPotPin, INPUT);
   
-  calibrationSpeed = 0;
   assistiveSpeed = 0;
-  transparencySpeed = 0;
-
+ 
   AFMS.begin();
   assistiveMotor->setSpeed(0);
   sensorMotor->setSpeed(0);
 
-  assistiveMotorPID.SetOutputLimits(-50, 50);
+  assistiveMotorPID.SetOutputLimits(-assistiveSpeed, assistiveSpeed);
   assistiveMotorPID.SetMode(AUTOMATIC);
 
   Serial.begin(9600);
@@ -156,7 +152,7 @@ bool executeCommand(char cmdReceived[][MAX_SIZE_COMMAND])
     /* Calibration of X axis */
     if( !strcmp(cmdReceived[0],"@CALIBRATE\r") )
     {
-      return true;
+        return true;
     }
     /* Allows to move the motor step by step to a desired position. */
     /* This can be used to adjust initial position of the Assistive Motor. */
@@ -164,77 +160,75 @@ bool executeCommand(char cmdReceived[][MAX_SIZE_COMMAND])
     {
         if( strcmp(cmdReceived[1]," ") )
         {
-          int incMotorPosition = atoi(cmdReceived[1]);
-          int currentMotorPosition = getPositionMotorFeedback();
-          int targetMotorPosition = currentMotorPosition + incMotorPosition;
-          if( incMotorPosition < -127 || incMotorPosition > 127 )
-          {
-             Serial.print("Movement value out of range [-127 to 127]");
-             return false;
-          }
-          else if( targetMotorPosition < 0 || targetMotorPosition > 127 )
-          {
-             Serial.print("Target motor position out of range [0 to 127]");
-             return false;
-          }
-          else
-          {
-            if( calibrationSpeed > 0 )
+            int incMotorPosition = atoi(cmdReceived[1]);
+            int currentMotorPosition = getPositionMotorFeedback();
+            int targetMotorPosition = currentMotorPosition + incMotorPosition;
+            if( incMotorPosition < -127 || incMotorPosition > 127 )
             {
-              bool motorReadyInPosition = false;
-
-              do
-              {
-                Serial.print("Increment position: ");
-                Serial.print(incMotorPosition);
-                Serial.print("\t");
-                Serial.print("Target position motor: ");
-                Serial.print(targetMotorPosition);
-                Serial.print("\t");
-                
-                setTargetPID = targetMotorPosition;
-                inputPositionPID = getPositionMotorFeedback();
-                assistiveMotorPID.Compute();
-        
-                Serial.print("Current motor position: ");
-                Serial.print(inputPositionPID);
-                Serial.print("\t");
-
-                Serial.print("PID output position: ");
-                Serial.print(outputPositionPID);
-                Serial.print("\t");
-        
-                if( outputPositionPID > 0 )
-                {
-                  //assistiveMotor->setSpeed(calibrationSpeed);
-                  //assistiveMotor->run(FORWARD);
-                  Serial.println("Motor action: move forward");
-                }
-                else if( outputPositionPID < 0 )
-                {
-                  //assistiveMotor->setSpeed(calibrationSpeed);
-                  //assistiveMotor->run(BACKWARD);
-                  Serial.println("Motor action: move backward");
-                }
-                else
-                {
-                  motorReadyInPosition = true;
-                  //assistiveMotor->setSpeed(0);
-                  Serial.println("Motor action: stop motor");
-                }
-              }while( !motorReadyInPosition );
+                Serial.print("Movement value out of range [-127 to 127]");
+                return false;
             }
-          }
+            else if( targetMotorPosition < 0 || targetMotorPosition > 127 )
+            {
+                Serial.print("Target motor position out of range [0 to 127]");
+                return false;
+            }
+            else
+            {
+                bool motorReadyInPosition = false;
+    
+                setTargetPID = targetMotorPosition;
+                Serial.println("");
+    
+                do
+                {                
+                    inputPositionPID = getPositionMotorFeedback();
+                    assistiveMotorPID.Compute();
+            
+                    Serial.print("Target position: ");
+                    Serial.print(targetMotorPosition);
+                    Serial.print("\t");
+                    
+                    Serial.print("Current position: ");
+                    Serial.print(inputPositionPID);
+                    Serial.print("\t");
+      
+                    Serial.print("PID control signal: ");
+                    Serial.print(outputPositionPID);
+                    Serial.print("\t");
+      
+                    assistiveMotor->setSpeed(abs(outputPositionPID));
+            
+                    if( setTargetPID == inputPositionPID )
+                    {
+                        assistiveMotor->run(RELEASE);                  
+                        motorReadyInPosition = true;
+                    }
+                    else if( outputPositionPID > 0 )
+                    {
+                        assistiveMotor->run(FORWARD);
+                    }
+                    else if( outputPositionPID < 0 )
+                    {
+                        assistiveMotor->run(BACKWARD);
+                    }
+                    else
+                    {
+                        motorReadyInPosition = true;
+                        assistiveMotor->run(RELEASE);                  
+                    }
+                }while( !motorReadyInPosition );
+            }
         }
         else
-          return false;
+            return false;
     }
     /* Calibration of Z axis */
     else if( !strcmp(cmdReceived[0],"@TRANSPARENCY") )
     {
         if( !strcmp(cmdReceived[1],"ON\r") )
         {
-            if( transparencySpeed > 0)
+            if( assistiveSpeed > 0)
             {
                 do
                 {
@@ -322,33 +316,11 @@ bool executeCommand(char cmdReceived[][MAX_SIZE_COMMAND])
         return true;
     }
     /* Calibration of T axis */
-    else if( !strcmp(cmdReceived[0],"@SETCALIBSPEED") )
-    {
-        if( strcmp(cmdReceived[1]," ") )
-        {
-            calibrationSpeed = atoi(cmdReceived[1]);            
-            return true;
-        }
-        else
-          return false;
-    }
-    /* Calibration of T axis */
     else if( !strcmp(cmdReceived[0],"@SETASSISTSPEED") )
     {
         if( strcmp(cmdReceived[1]," ") )
         {
             assistiveSpeed = atoi(cmdReceived[1]);            
-            return true;
-        }
-        else
-          return false;
-    }
-    /* Calibration of T axis */
-    else if( !strcmp(cmdReceived[0],"@SETTRANSSPEED") )
-    {
-        if( strcmp(cmdReceived[1]," ") )
-        {
-            transparencySpeed = atoi(cmdReceived[1]);            
             return true;
         }
         else
@@ -360,37 +332,13 @@ bool executeCommand(char cmdReceived[][MAX_SIZE_COMMAND])
       Serial.println("======================================");
       Serial.println("AFO INFO version 0.1");
       Serial.println("======================================");
-      Serial.print("Calibration speed: ");
-      Serial.println(calibrationSpeed);
       Serial.print("Assistive speed: ");
       Serial.println(assistiveSpeed);
-      Serial.print("Transparency speed: ");
-      Serial.println(transparencySpeed);
       Serial.print("Current assitive motor position: ");
       Serial.println(getPositionMotorFeedback());
       Serial.print("Current sensor motor position: ");
       Serial.println(analogRead(linPotPin));
       Serial.println("======================================");
-      return true;
-    }
-    /* Calibration of Z axis */
-    else if( !strcmp(cmdReceived[0],"@HELP\r") )
-    {
-      Serial.println("======================================");
-      Serial.println("AFO INFO version 0.1");
-      Serial.println("=============== HELP =================");
-      Serial.println("COMMAND LIST");
-      Serial.println("@CALIBRATE: ");
-      Serial.println("@MOVESTEP <STEP SIZE>: ");
-      Serial.println("@SETCALIBSPEED <SPEED>: ");
-      Serial.println("@SETASSISTSPEED <SPEED>: ");
-      Serial.println("@SETTRANSSPEED <SPEED>: ");
-      Serial.println("@TRANSPARENCY: ");
-      Serial.println("@ASSISTANCE: ");
-      Serial.println("@HELP: ");
-      Serial.println("@INFO: ");
-      Serial.println("======================================");
-      
       return true;
     }
     else
@@ -425,8 +373,8 @@ void sendNACK()
 /* Check the command received */
 bool commandList(char *cmdReceived)
 {
-    char *commandArray[] = {"@CALIBRATE\r","@MOVESTEP","@SETCALIBSPEED","@SETASSISTSPEED","@SETTRANSSPEED","@INFO\r","@TRANSPARENCY","@ASSISTANCE","@HELP\r"};
-    int ncommands = 9;
+    char *commandArray[] = {"@CALIBRATE\r","@MOVESTEP","@SETASSISTSPEED","@INFO\r","@TRANSPARENCY","@ASSISTANCE"};
+    int ncommands = 6;
     
     for( int i = 0; i < ncommands; i++ )
     {
