@@ -373,6 +373,26 @@ bool executeCommand(char cmdReceived[][MAX_SIZE_COMMAND])
       Serial.println("======================================");
       return true;
     }
+    /* Calibration of Z axis */
+    else if( !strcmp(cmdReceived[0],"@HELP\r") )
+    {
+      Serial.println("======================================");
+      Serial.println("AFO INFO version 0.1");
+      Serial.println("=============== HELP =================");
+      Serial.println("COMMAND LIST");
+      Serial.println("@CALIBRATE: ");
+      Serial.println("@MOVESTEP <STEP SIZE>: ");
+      Serial.println("@SETCALIBSPEED <SPEED>: ");
+      Serial.println("@SETASSISTSPEED <SPEED>: ");
+      Serial.println("@SETTRANSSPEED <SPEED>: ");
+      Serial.println("@TRANSPARENCY: ");
+      Serial.println("@ASSISTANCE: ");
+      Serial.println("@HELP: ");
+      Serial.println("@INFO: ");
+      Serial.println("======================================");
+      
+      return true;
+    }
     else
       return false;
 }
@@ -405,8 +425,8 @@ void sendNACK()
 /* Check the command received */
 bool commandList(char *cmdReceived)
 {
-    char *commandArray[] = {"@CALIBRATE\r","@MOVESTEP","@SETCALIBSPEED","@SETASSISTSPEED","@SETTRANSSPEED","@INFO\r","@TRANSPARENCY","@ASSISTANCE"};
-    int ncommands = 8;
+    char *commandArray[] = {"@CALIBRATE\r","@MOVESTEP","@SETCALIBSPEED","@SETASSISTSPEED","@SETTRANSSPEED","@INFO\r","@TRANSPARENCY","@ASSISTANCE","@HELP\r"};
+    int ncommands = 9;
     
     for( int i = 0; i < ncommands; i++ )
     {
