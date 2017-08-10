@@ -329,17 +329,17 @@ bool executeCommand(char cmdReceived[][MAX_SIZE_COMMAND])
     /* Calibration of Z axis */
     else if( !strcmp(cmdReceived[0],"@INFO\r") )
     {
-      Serial.println("======================================");
-      Serial.println("AFO INFO version 0.1");
-      Serial.println("======================================");
-      Serial.print("Assistive speed: ");
-      Serial.println(assistiveSpeed);
-      Serial.print("Current assitive motor position: ");
-      Serial.println(getPositionMotorFeedback());
-      Serial.print("Current sensor motor position: ");
-      Serial.println(analogRead(linPotPin));
-      Serial.println("======================================");
-      return true;
+        Serial.println("======================================");
+        Serial.println("AFO INFO version 0.1");
+        Serial.println("======================================");
+        Serial.print("Assistive speed: ");
+        Serial.println(assistiveSpeed);
+        Serial.print("Current assitive motor position: ");
+        Serial.println(getPositionMotorFeedback());
+        Serial.print("Current sensor motor position: ");
+        Serial.println(analogRead(linPotPin));
+        Serial.println("======================================");
+        return true;
     }
     else
       return false;
