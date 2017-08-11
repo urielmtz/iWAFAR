@@ -51,7 +51,7 @@ double inputPositionPID;
 double outputPositionPID;
 double setTargetPID;
 double Kp_position = 2;
-double Ki_position = 0;
+double Ki_position = 0.5;
 double Kd_position = 0.05;
 double assistiveMotorPositionError = 0;
 
@@ -317,6 +317,8 @@ bool executeCommand(char cmdReceived[][MAX_SIZE_COMMAND])
         if( strcmp(cmdReceived[1]," ") )
         {
             assistiveSpeed = atoi(cmdReceived[1]);            
+            assistiveMotorPID.SetOutputLimits(-assistiveSpeed, assistiveSpeed);
+            assistiveMotorPID.SetMode(AUTOMATIC);
             return true;
         }
         else
