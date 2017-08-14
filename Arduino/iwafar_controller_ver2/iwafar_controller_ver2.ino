@@ -1,18 +1,28 @@
 // Author: Uriel Martinez-Hernandez
-// Date: 7 August 2017
+// Created: 7 August 2017
 
 // manual and transparency control with PID control of DC motor for AFO
-// latest modification: 2nd August 2017
+// latest modification: 14th August 2017
 
 #include <Adafruit_MotorShield.h>
 #include <PID_v1.h>
+#include <PinChangeInt.h>
 
 #define MAX_SIZE_COMMAND 20
 #define MAX_NUM_PARAMETERS 20
 #define MAX_ENCODER 128         // maximum number of positions from rotary encoder
 #define MAX_BITS 8              // number of bits provided by the rotary encoder 
+
 #define linPotPin A10           // input from motorised linear potentiometer
 
+#define inD2 10
+#define inD3 11
+#define inD4 12
+#define inD5 13
+#define inD6 MISO
+#define inD7 MOSI
+#define inD8 SCK
+#define inD9 SS
 
 int binaryValue[MAX_BITS];
 
@@ -34,25 +44,17 @@ int lookup_table[MAX_ENCODER] = {127, 63, 62, 58, 56, 184, 152, 24,
                          16, 144, 146, 154, 158, 30, 94, 95};
 
 
-int inD2 = 2;
-int inD3 = 3;
-int inD4 = 4;
-int inD5 = 5;
-int inD6 = 6;
-int inD7 = 7;
-int inD8 = 8;
-int inD9 = 9;
-
 double currentSensorMotorPosition = 0;
 double mapCurrentSensorMotorPosition = 0;
 double constrainCurrentSensorMotorPosition = 0;
 
+volatile double tempInputEncoder = 0;
 double inputPositionPID;
 double outputPositionPID;
-double setTargetPID;
-double Kp_position = 8.0;
-double Ki_position = 12.0;
-double Kd_position = 0.0;
+double setTargetPID = 0;
+double Kp_position = 10.0;
+double Ki_position = 20.0;
+double Kd_position = 0.01;
 double assistiveMotorPositionError = 0;
 
 char commands_char[MAX_NUM_PARAMETERS][MAX_SIZE_COMMAND];
@@ -61,7 +63,19 @@ int ncommand = 0;
 char current_char;
 bool commandStatus = false;
 int assistiveSpeed;
+int mapInputPositionPID = 0;
 
+bool positionReady = false;
+bool limitsReached = false;
+
+int minInputMapSlider = 256;
+int maxInputMapSlider = 768;
+int minValMapSlider = 10;
+int maxValMapSlider = 120;
+int minValMapEncoder = 10;
+int maxValMapEncoder = 120;
+int minLimitVal = 10;
+int maxLimitVal = 120;
 
 Adafruit_MotorShield AFMS = Adafruit_MotorShield();
 Adafruit_DCMotor *assistiveMotor = AFMS.getMotor(1);
@@ -82,18 +96,29 @@ void setup() {
   pinMode(inD8, INPUT);
   pinMode(inD9, INPUT);
 
+  PCintPort::attachInterrupt(inD2, rotEncDig1, CHANGE);
+  PCintPort::attachInterrupt(inD3, rotEncDig2, CHANGE);
+  PCintPort::attachInterrupt(inD4, rotEncDig3, CHANGE);
+  PCintPort::attachInterrupt(inD5, rotEncDig4, CHANGE);
+  PCintPort::attachInterrupt(inD6, rotEncDig5, CHANGE);
+  PCintPort::attachInterrupt(inD7, rotEncDig6, CHANGE);
+  PCintPort::attachInterrupt(inD8, rotEncDig7, CHANGE);
+  PCintPort::attachInterrupt(inD9, rotEncDig8, CHANGE);
+
   pinMode(linPotPin, INPUT);
   
-  assistiveSpeed = 0;
  
   AFMS.begin();
   assistiveMotor->setSpeed(0);
   sensorMotor->setSpeed(0);
 
-  assistiveMotorPID.SetOutputLimits(-assistiveSpeed, assistiveSpeed);
-  assistiveMotorPID.SetMode(AUTOMATIC);
+  assistiveSpeed = 0;
 
-  Serial.begin(9600);
+  assistiveMotorPID.SetSampleTime(1);   // 1 msec
+  assistiveMotorPID.SetMode(AUTOMATIC);
+  assistiveMotorPID.SetOutputLimits(-assistiveSpeed, assistiveSpeed);
+
+  Serial.begin(115200);
 }
 
 void loop() {
@@ -111,6 +136,62 @@ void loop() {
     }
 }
 
+
+void rotEncDig1()
+{
+    inputPositionPID = getPositionMotorFeedback();
+    if( setTargetPID == inputPositionPID )
+        positionReady = true;
+}
+
+void rotEncDig2()
+{
+    inputPositionPID = getPositionMotorFeedback();
+    if( setTargetPID == inputPositionPID )
+        positionReady = true;
+}
+
+void rotEncDig3()
+{
+    inputPositionPID = getPositionMotorFeedback();
+    if( setTargetPID == inputPositionPID )
+        positionReady = true;
+}
+
+void rotEncDig4()
+{
+    inputPositionPID = getPositionMotorFeedback();
+    if( setTargetPID == inputPositionPID )
+        positionReady = true;
+}
+
+void rotEncDig5()
+{
+    inputPositionPID = getPositionMotorFeedback();
+    if( setTargetPID == inputPositionPID )
+        positionReady = true;
+}
+
+void rotEncDig6()
+{
+    inputPositionPID = getPositionMotorFeedback();
+    if( setTargetPID == inputPositionPID )
+        positionReady = true;
+}
+
+void rotEncDig7()
+{
+    inputPositionPID = getPositionMotorFeedback();
+    if( setTargetPID == inputPositionPID )
+        positionReady = true;
+}
+
+void rotEncDig8()
+{
+    inputPositionPID = getPositionMotorFeedback();
+    if( setTargetPID == inputPositionPID )
+        positionReady = true;
+}
 
 bool readCommands()
 {
@@ -160,6 +241,7 @@ bool executeCommand(char cmdReceived[][MAX_SIZE_COMMAND])
     {
         if( strcmp(cmdReceived[1]," ") )
         {
+            positionReady = false;
             int incMotorPosition = atoi(cmdReceived[1]);
             int currentMotorPosition = getPositionMotorFeedback();
             int targetMotorPosition = currentMotorPosition + incMotorPosition;
@@ -176,48 +258,40 @@ bool executeCommand(char cmdReceived[][MAX_SIZE_COMMAND])
             else
             {
                 setTargetPID = targetMotorPosition;
+                inputPositionPID = currentMotorPosition;
+                outputPositionPID = 0;
                 Serial.println("");
                 Serial.print("Target position: ");
                 Serial.println(setTargetPID);
     
                 do
-                {                
-                    inputPositionPID = getPositionMotorFeedback();
-            
-                    if( setTargetPID != inputPositionPID )
-                    {
-                        assistiveMotorPID.Compute();
-                        assistiveMotor->setSpeed(abs(outputPositionPID));
-    
-                        if( outputPositionPID > 0 )
-                        {
-                            assistiveMotor->run(FORWARD);
-                        }
-                        else if( outputPositionPID < 0 )
-                        {
-                            assistiveMotor->run(BACKWARD);
-                        }
-                        else
-                        {
-                            // temporally empty
-                        }
+                {
+                    Serial.print("Rotary encoder: ");
+                    Serial.print(inputPositionPID);
+                    Serial.print("\t\t");
+                    Serial.print("PID control signal: ");
+                    Serial.println(outputPositionPID);
 
-                        if( setTargetPID == getPositionMotorFeedback() )
-                        {
-                            assistiveMotor->setSpeed(0);
-                            assistiveMotor->run(RELEASE);
-                        }                        
+                    assistiveMotorPID.Compute();
+                    assistiveMotor->setSpeed(abs(outputPositionPID));
+    
+                    if( outputPositionPID > 0 )
+                    {
+                        assistiveMotor->run(FORWARD);
+                    }
+                    else if( outputPositionPID < 0 )
+                    {
+                        assistiveMotor->run(BACKWARD);
                     }
                     else
                     {
-                        assistiveMotor->setSpeed(0);
-                        assistiveMotor->run(RELEASE);                  
+                        // temporally empty
                     }
-                    
-                }while( setTargetPID != getPositionMotorFeedback() );
+                }while( !positionReady );
 
                 assistiveMotor->setSpeed(0);
-                assistiveMotor->run(RELEASE);                  
+                assistiveMotor->run(RELEASE);
+                outputPositionPID = 0;
             }
         }
         else
@@ -256,6 +330,8 @@ bool executeCommand(char cmdReceived[][MAX_SIZE_COMMAND])
     {
         if( !strcmp(cmdReceived[1],"ON\r") )
         {
+            inputPositionPID = getPositionMotorFeedback();
+            outputPositionPID = 0;
             Serial.println("");
 
             do
@@ -265,19 +341,6 @@ bool executeCommand(char cmdReceived[][MAX_SIZE_COMMAND])
                     commandStatus = readCommands();
                     replyAcknowledge(commandStatus);
                 }
-
-                currentSensorMotorPosition = analogRead(linPotPin);
-                currentSensorMotorPosition = 1023 - currentSensorMotorPosition;
-                mapCurrentSensorMotorPosition = map(currentSensorMotorPosition, 256, 768, 10, 120);
-                setTargetPID = constrain(mapCurrentSensorMotorPosition, 10, 120);
-
-                inputPositionPID = getPositionMotorFeedback();
-                
-                if( inputPositionPID <= 10 )
-                    inputPositionPID = 10;
-                else if( inputPositionPID >= 120 )
-                    inputPositionPID = 120;
-
 
                 Serial.print("Target position: ");
                 Serial.print(setTargetPID);
@@ -291,6 +354,13 @@ bool executeCommand(char cmdReceived[][MAX_SIZE_COMMAND])
                 Serial.println(outputPositionPID);
 
 
+                currentSensorMotorPosition = analogRead(linPotPin);
+                currentSensorMotorPosition = 1023 - currentSensorMotorPosition;
+                mapCurrentSensorMotorPosition = map(currentSensorMotorPosition, minInputMapSlider, maxInputMapSlider, minValMapSlider, maxValMapSlider);
+                setTargetPID = constrain(mapCurrentSensorMotorPosition, minValMapSlider, maxValMapSlider);
+
+                positionReady = false;
+
                 if( currentSensorMotorPosition <= 256 )
                 {
                     sensorMotor->setSpeed(0);
@@ -303,67 +373,39 @@ bool executeCommand(char cmdReceived[][MAX_SIZE_COMMAND])
                 }
 
 
-                if( ( inputPositionPID >= 120 && setTargetPID >= 120 ) || ( inputPositionPID <= 10 && setTargetPID <= 10 ) || ( setTargetPID == inputPositionPID ) )
+                if( ( setTargetPID >= minLimitVal && inputPositionPID < minLimitVal ) || ( setTargetPID <= maxLimitVal && inputPositionPID > maxLimitVal ) )
                 {
-                    assistiveMotor->setSpeed(0);
-                    assistiveMotor->run(RELEASE);
-                }
-                else
-                {                
-                    if( setTargetPID != inputPositionPID )
+                    assistiveMotorPID.Compute();
+                    assistiveMotor->setSpeed(abs(outputPositionPID));
+                    if( outputPositionPID > 0 )
                     {
-                        assistiveMotorPID.Compute();
-                        assistiveMotor->setSpeed(abs(outputPositionPID));
-    
-                        if( outputPositionPID > 0 )
-                        {
-                            assistiveMotor->run(FORWARD);
-                        }
-                        else if( outputPositionPID < 0 )
-                        {
-                            assistiveMotor->run(BACKWARD);
-                        }
-                        else
-                        {
-                            // temporally empty
-                        }
-    
-                        currentSensorMotorPosition = analogRead(linPotPin);
-                        currentSensorMotorPosition = 1023 - currentSensorMotorPosition;
-                        mapCurrentSensorMotorPosition = map(currentSensorMotorPosition, 256, 768, 10, 120);
-                        setTargetPID = constrain(mapCurrentSensorMotorPosition, 10, 120);
+                        assistiveMotor->run(FORWARD);
+                    }
+                    else if( outputPositionPID < 0 )
+                    {
+                        assistiveMotor->run(BACKWARD);
+                    }                  
+                }
 
-                        inputPositionPID = getPositionMotorFeedback();
-                        
-                        if( inputPositionPID <= 10 )
-                            inputPositionPID = 10;
-                        else if( inputPositionPID >= 120 )
-                            inputPositionPID = 120;
 
-                        if( ( inputPositionPID >= 120 && setTargetPID >= 120 ) || ( inputPositionPID <= 10 && setTargetPID <= 10 ) || ( setTargetPID == inputPositionPID ) )
-                        {
-                            assistiveMotor->setSpeed(0);
-                            assistiveMotor->run(RELEASE);
-                        }
+                if( inputPositionPID >= minLimitVal && inputPositionPID <= maxLimitVal )                
+                {
+                    assistiveMotorPID.Compute();
+                    assistiveMotor->setSpeed(abs(outputPositionPID));
+                    if( outputPositionPID > 0 )
+                    {
+                        assistiveMotor->run(FORWARD);
+                    }
+                    else if( outputPositionPID < 0 )
+                    {
+                        assistiveMotor->run(BACKWARD);
                     }
                     else
                     {
-                        assistiveMotor->setSpeed(0);
-                        assistiveMotor->run(RELEASE);                  
+                        // temporally empty
                     }
                 }
-                
-/*                currentSensorMotorPosition = analogRead(linPotPin);
-                currentSensorMotorPosition = 1023 - currentSensorMotorPosition;
-                mapCurrentSensorMotorPosition = map(currentSensorMotorPosition, 256, 768, 10, 120);
-                setTargetPID = constrain(mapCurrentSensorMotorPosition, 10, 120);
 
-                if( currentSensorMotorPosition <= 256 )
-                {
-                    sensorMotor->setSpeed(0);
-                    sensorMotor->run(RELEASE);
-                }
-*/
             }while( strcmp(commands_char[0],"@TRANSPARENCY") || strcmp(commands_char[1],"OFF\r") );
 
             Serial.println("End of TRANSPARENCY MODE");
@@ -424,8 +466,8 @@ bool executeCommand(char cmdReceived[][MAX_SIZE_COMMAND])
     {
         int sensorPot = analogRead(linPotPin);
         sensorPot = 1023 - sensorPot;
-        int mapSensorPot = map(sensorPot, 256, 768, 10, 120);
-        mapSensorPot = constrain(mapSensorPot, 10, 120);
+        int mapSensorPot = map(sensorPot, minInputMapSlider, maxInputMapSlider, minValMapSlider, maxValMapSlider);
+        mapSensorPot = constrain(mapSensorPot, minValMapSlider, maxValMapSlider);
 
         Serial.println("======================================");
         Serial.println("AFO INFO version 0.1");
