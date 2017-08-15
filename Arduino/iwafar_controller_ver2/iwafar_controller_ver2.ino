@@ -368,7 +368,7 @@ bool executeCommand(char cmdReceived[][MAX_SIZE_COMMAND])
                 }
                 else
                 {
-                    sensorMotor->setSpeed(100);
+                    sensorMotor->setSpeed(120);
                     sensorMotor->run(BACKWARD);        
                 }
 
@@ -408,6 +408,8 @@ bool executeCommand(char cmdReceived[][MAX_SIZE_COMMAND])
 
             }while( strcmp(commands_char[0],"@TRANSPARENCY") || strcmp(commands_char[1],"OFF\r") );
 
+            assistiveMotor->run(RELEASE);
+            sensorMotor->run(RELEASE);
             Serial.println("End of TRANSPARENCY MODE");
             return true;
         }
