@@ -1,8 +1,8 @@
 // Author: Uriel Martinez-Hernandez
-// Created: 7 August 2017
+// Date: 7 August 2017
 
 // manual and transparency control with PID control of DC motor for AFO
-// latest modification: 14th August 2017
+// latest modification: 2nd August 2017
 
 #include <Adafruit_MotorShield.h>
 #include <PID_v1.h>
@@ -76,6 +76,10 @@ int minValMapEncoder = 10;
 int maxValMapEncoder = 120;
 int minLimitVal = 10;
 int maxLimitVal = 120;
+
+int midMotorPoint = 0;
+int assistiveMotorPoint = 0;
+int releaseMotorPoint = 0;
 
 Adafruit_MotorShield AFMS = Adafruit_MotorShield();
 Adafruit_DCMotor *assistiveMotor = AFMS.getMotor(1);
@@ -230,10 +234,44 @@ bool readCommands()
 /* Function for execution of commands */
 bool executeCommand(char cmdReceived[][MAX_SIZE_COMMAND])
 {
-    /* Calibration of X axis */
-    if( !strcmp(cmdReceived[0],"@CALIBRATE\r") )
+    /* Calibration of Mid Motor Point */
+    if( !strcmp(cmdReceived[0],"@CALMIDPOINT") )
     {
-        return true;
+        if( strcmp(cmdReceived[1]," ") )
+        {
+            int pointValue = atoi(cmdReceived[1]);            
+            midMotorPoint = pointValue;
+//            midMotorPoint = getPositionMotorFeedback();
+            return true;
+        }
+        else
+          return false;
+    }
+    /* Calibration of Assistive Motor Point */
+    if( !strcmp(cmdReceived[0],"@CALASSISTIVEPOINT") )
+    {
+        if( strcmp(cmdReceived[1]," ") )
+        {
+            int pointValue = atoi(cmdReceived[1]);            
+            assistiveMotorPoint = pointValue;
+//            assistiveMotorPoint = getPositionMotorFeedback();
+            return true;
+        }
+        else
+          return false;
+    }
+    /* Calibration of Release Motor Point */
+    if( !strcmp(cmdReceived[0],"@CALRELEASEPOINT") )
+    {
+        if( strcmp(cmdReceived[1]," ") )
+        {
+            int pointValue = atoi(cmdReceived[1]);            
+            releaseMotorPoint = pointValue;
+//            releaseMotorPoint = getPositionMotorFeedback();
+            return true;
+        }
+        else
+          return false;
     }
     /* Allows to move the motor step by step to a desired position. */
     /* This can be used to adjust initial position of the Assistive Motor. */
@@ -332,7 +370,7 @@ bool executeCommand(char cmdReceived[][MAX_SIZE_COMMAND])
         {
             inputPositionPID = getPositionMotorFeedback();
             outputPositionPID = 0;
-            Serial.println("");
+//            Serial.println("");
 
             do
             {
@@ -341,7 +379,7 @@ bool executeCommand(char cmdReceived[][MAX_SIZE_COMMAND])
                     commandStatus = readCommands();
                     replyAcknowledge(commandStatus);
                 }
-
+/*
                 Serial.print("Target position: ");
                 Serial.print(setTargetPID);
                 Serial.print("\t");
@@ -352,7 +390,7 @@ bool executeCommand(char cmdReceived[][MAX_SIZE_COMMAND])
                                   
                 Serial.print("PID control signal: ");
                 Serial.println(outputPositionPID);
-
+*/
 
                 currentSensorMotorPosition = analogRead(linPotPin);
                 currentSensorMotorPosition = 1023 - currentSensorMotorPosition;
@@ -410,12 +448,12 @@ bool executeCommand(char cmdReceived[][MAX_SIZE_COMMAND])
 
             assistiveMotor->run(RELEASE);
             sensorMotor->run(RELEASE);
-            Serial.println("End of TRANSPARENCY MODE");
+//            Serial.println("End of TRANSPARENCY MODE");
             return true;
         }
         else if( !strcmp(cmdReceived[1],"OFF\r") )
         {
-            Serial.println("End of TRANSPARENCY MODE");
+//            Serial.println("End of TRANSPARENCY MODE");
             return true;
         }
         else
@@ -426,27 +464,86 @@ bool executeCommand(char cmdReceived[][MAX_SIZE_COMMAND])
     {
         if( !strcmp(cmdReceived[1],"ON\r") )
         {
-            if( assistiveSpeed > 0)
+            do
             {
-                do
+                if( Serial.available() > 0 )
                 {
-                    if( Serial.available() > 0 )
-                    {
-                        commandStatus = readCommands();
-                        replyAcknowledge(commandStatus);
-                    }
+                    commandStatus = readCommands();
+                    replyAcknowledge(commandStatus);
+                }
+    
+                setTargetPID = assistiveMotorPoint;
 
-                    /**
-                     *  Add here the code to apply assistance in dorsiflexion. 
-                     *  For the assistance, you need to define the angle or position to lift up the foot.
-                     *  The foot needs to keep in the defined position until the "@ASSISTANCE OFF" 
-                     *  command is received. Then, the assistance needs to be released by the command
-                     *  "@TRANSPARENCY", which allow the human foot to move freely.
-                     */
-                     
-                }while( strcmp(commands_char[0],"@ASSISTANCE") || strcmp(commands_char[1],"OFF\r") );
-            }
+                positionReady = false;
+                 
+                if( inputPositionPID >= minLimitVal && inputPositionPID <= maxLimitVal )                
+                {
+                    assistiveMotorPID.Compute();
+                    assistiveMotor->setSpeed(abs(outputPositionPID));
+                    if( outputPositionPID > 0 )
+                    {
+                        assistiveMotor->run(FORWARD);
+                    }
+                    else if( outputPositionPID < 0 )
+                    {
+                        assistiveMotor->run(BACKWARD);
+                    }
+                    else
+                    {
+                        // temporally empty
+                    }
+                }
+    
+            }while( strcmp(commands_char[0],"@ASSISTANCE") || strcmp(commands_char[1],"OFF\r") );
         }
+
+        assistiveMotor->run(RELEASE);
+
+//        Serial.println("End of ASSISTANCE MODE");
+
+        return true;
+    }
+    /* Calibration of Z axis */
+    else if( !strcmp(cmdReceived[0],"@RELEASE") )
+    {
+        if( !strcmp(cmdReceived[1],"ON\r") )
+        {
+            do
+            {
+                if( Serial.available() > 0 )
+                {
+                    commandStatus = readCommands();
+                    replyAcknowledge(commandStatus);
+                }
+    
+                setTargetPID = releaseMotorPoint;
+
+                positionReady = false;
+                 
+                if( inputPositionPID >= minLimitVal && inputPositionPID <= maxLimitVal )                
+                {
+                    assistiveMotorPID.Compute();
+                    assistiveMotor->setSpeed(abs(outputPositionPID));
+                    if( outputPositionPID > 0 )
+                    {
+                        assistiveMotor->run(FORWARD);
+                    }
+                    else if( outputPositionPID < 0 )
+                    {
+                        assistiveMotor->run(BACKWARD);
+                    }
+                    else
+                    {
+                        // temporally empty
+                    }
+                }
+    
+            }while( strcmp(commands_char[0],"@RELEASE") || strcmp(commands_char[1],"OFF\r") );
+        }
+
+        assistiveMotor->run(RELEASE);
+
+//        Serial.println("End of ASSISTANCE MODE");
 
         return true;
     }
@@ -476,6 +573,12 @@ bool executeCommand(char cmdReceived[][MAX_SIZE_COMMAND])
         Serial.println("======================================");
         Serial.print("Assistive speed: ");
         Serial.println(assistiveSpeed);
+        Serial.print("Mid motor position: ");
+        Serial.println(midMotorPoint);
+        Serial.print("Assistive motor point: ");
+        Serial.println(assistiveMotorPoint);
+        Serial.print("Release motor point: ");
+        Serial.println(releaseMotorPoint);
         Serial.print("Current assitive motor position: ");
         Serial.println(getPositionMotorFeedback());
         Serial.print("Current sensor motor position: ");
@@ -518,8 +621,8 @@ void sendNACK()
 /* Check the command received */
 bool commandList(char *cmdReceived)
 {
-    char *commandArray[] = {"@CALIBRATE\r","@MOVE","@SETMAXSPEED","@INFO\r","@TRANSPARENCY","@ASSISTANCE","@MOVETIME"};
-    int ncommands = 7;
+    char *commandArray[] = {"@CALMIDPOINT","@CALASSISTIVEPOINT","@CALRELEASEPOINT","@MOVE","@SETMAXSPEED","@INFO\r","@TRANSPARENCY","@ASSISTANCE","@RELEASE","@MOVETIME"};
+    int ncommands = 10;
     
     for( int i = 0; i < ncommands; i++ )
     {
